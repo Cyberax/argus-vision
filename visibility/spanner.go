@@ -175,7 +175,6 @@ func doCleanupWithErr(span trace.Span, err error, thrownPanic any) {
 	if w.met != nil {
 		// Export metrics into the span as tags
 		w.met.ExportToSpan(w.Span)
-
 		w.met.InitCounts(successMet, errorMet, failMet)
 	}
 
