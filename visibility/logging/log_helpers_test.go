@@ -41,3 +41,18 @@ func TestNoLog(t *testing.T) {
 		SL(ctx)
 	})
 }
+
+func TestDerived(t *testing.T) {
+	ctx := context.Background()
+
+	sink, logger := NewMemorySinkLogger()
+	imbued := ImbueContext(ctx, logger)
+	imbued = WithFields(imbued, zap.Int64("test", 123))
+	
+	L(imbued).Info("Hello this is a test")
+
+	res := sink.String()
+	splits := strings.Split(res, "\n")
+	assert.True(t, strings.HasSuffix(splits[0],
+		`"msg":"Hello this is a test","test":123}`))
+}

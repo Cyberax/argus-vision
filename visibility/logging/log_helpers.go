@@ -39,3 +39,8 @@ func SL(ctx context.Context, opts ...zap.Option) *zap.SugaredLogger {
 func ImbueContext(ctx context.Context, logger *zap.Logger) context.Context {
 	return context.WithValue(ctx, loggerKeyVal, logger)
 }
+
+func WithFields(ctx context.Context, fields ...zap.Field) context.Context {
+	logger := L(ctx)
+	return ImbueContext(ctx, logger.With(fields...))
+}
