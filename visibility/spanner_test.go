@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/Cyberax/argus-vision/visibility/logging"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"runtime"
 	"strings"
@@ -15,9 +16,9 @@ func TestSpanLeak(t *testing.T) {
 	t.Parallel()
 	obs, _ := NewRecordingObserver(zap.NewNop())
 
-	var panicMsg string
+	panicMsg := atomic.NewString("")
 	registerPanic := func(p any) {
-		panicMsg = p.(string)
+		panicMsg.Store(p.(string))
 	}
 
 	// We leak this span
@@ -26,8 +27,8 @@ func TestSpanLeak(t *testing.T) {
 	sp = nil
 	runtime.GC() // Make sure finalizers fire
 
-	assert.True(t, strings.HasPrefix(panicMsg, "A span has not been finalized"))
-	assert.True(t, strings.HasSuffix(panicMsg, "spanner_test.go:24")) // <--- goes here
+	assert.True(t, strings.HasPrefix(panicMsg.Load(), "A span has not been finalized"))
+	assert.True(t, strings.HasSuffix(panicMsg.Load(), "spanner_test.go:25")) // <--- goes here
 }
 
 func TestSpannerHappyCase(t *testing.T) {

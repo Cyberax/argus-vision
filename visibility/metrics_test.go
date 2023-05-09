@@ -1,17 +1,5 @@
 package visibility
 
-//func TestSecureContext(t *testing.T) {
-//	c1 := context.Background()
-//	assert.Equal(t, "", TryGetSecureId(c1))
-//	assert.Panics(t, func() {
-//		GetSecureId(c1)
-//	})
-//
-//	c2 := SetSecureReqId(c1, "Hello")
-//	assert.Equal(t, "Hello", GetSecureId(c2))
-//	assert.Equal(t, "Hello", TryGetSecureId(c2))
-//}
-
 //func TestMetricsContext(t *testing.T) {
 //	ctx := MakeMetricHelper(context.Background(), "TestOp")
 //	mctx := GetMetricHelperFromContext(ctx)
