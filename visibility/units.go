@@ -1,12 +1,10 @@
 package visibility
 
-import "go.opentelemetry.io/otel/metric/unit"
-
 const CanaryAttributeName = "canary"
 
 // OTEL only defines these metrics:
 // const (
-//	Dimensionless unit.Unit = "1"
+//	Dimensionless string = "1"
 //	Bytes         Unit = "By"
 //	Milliseconds  Unit = "ms"
 // )
@@ -15,53 +13,53 @@ const CanaryAttributeName = "canary"
 // For Prometheus see: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/10028
 //goland:noinspection GoCommentStart,GoUnusedConst
 const (
-	Dimensionless unit.Unit = "1"
+	Dimensionless string = "1"
 
 	// Time
-	UnitDays         unit.Unit = "d"
-	UnitHours        unit.Unit = "h"
-	UnitMinutes      unit.Unit = "min"
-	UnitSeconds      unit.Unit = "s"
-	UnitMilliseconds unit.Unit = "ms"
-	UnitMicroseconds unit.Unit = "us"
-	UnitNanoseconds  unit.Unit = "ns"
+	UnitDays         string = "d"
+	UnitHours        string = "h"
+	UnitMinutes      string = "min"
+	UnitSeconds      string = "s"
+	UnitMilliseconds string = "ms"
+	UnitMicroseconds string = "us"
+	UnitNanoseconds  string = "ns"
 
 	// Bytes
-	UnitKibiBytes unit.Unit = "KiBy"
-	UnitMebiBytes unit.Unit = "MiBy"
-	UnitGibiBytes unit.Unit = "GiBy"
-	UnitTibiBytes unit.Unit = "TiBy"
+	UnitKibiBytes string = "KiBy"
+	UnitMebiBytes string = "MiBy"
+	UnitGibiBytes string = "GiBy"
+	UnitTibiBytes string = "TiBy"
 
-	UnitBytes     unit.Unit = "B"
-	UnitKiloBytes unit.Unit = "KB"
-	UnitMegaBytes unit.Unit = "MB"
-	UnitGigaBytes unit.Unit = "GB"
-	UnitTeraBytes unit.Unit = "TB"
+	UnitBytes     string = "B"
+	UnitKiloBytes string = "KB"
+	UnitMegaBytes string = "MB"
+	UnitGigaBytes string = "GB"
+	UnitTeraBytes string = "TB"
 
 	// Network Speed
-	UnitKibiBytesSec unit.Unit = "KiBy/s"
-	UnitMebiBytesSec unit.Unit = "MiBy/s"
-	UnitGibiBytesSec unit.Unit = "GiBy/s"
-	UnitTibiBytesSec unit.Unit = "TiBy/s"
+	UnitKibiBytesSec string = "KiBy/s"
+	UnitMebiBytesSec string = "MiBy/s"
+	UnitGibiBytesSec string = "GiBy/s"
+	UnitTibiBytesSec string = "TiBy/s"
 
-	UnitBytesSec     unit.Unit = "B/s"
-	UnitKiloBytesSec unit.Unit = "KB/s"
-	UnitMegaBytesSec unit.Unit = "MB/s"
-	UnitGigaBytesSec unit.Unit = "GB/s"
-	UnitTeraBytesSec unit.Unit = "TB/s"
+	UnitBytesSec     string = "B/s"
+	UnitKiloBytesSec string = "KB/s"
+	UnitMegaBytesSec string = "MB/s"
+	UnitGigaBytesSec string = "GB/s"
+	UnitTeraBytesSec string = "TB/s"
 
 	// SI
-	UnitMetersPerSec unit.Unit = "m/s"
-	UnitMeters       unit.Unit = "m"
-	UnitVolts        unit.Unit = "V"
-	UnitAmperes      unit.Unit = "A"
-	UnitJoules       unit.Unit = "J"
-	UnitWatts        unit.Unit = "W"
-	UnitGrams        unit.Unit = "g"
+	UnitMetersPerSec string = "m/s"
+	UnitMeters       string = "m"
+	UnitVolts        string = "V"
+	UnitAmperes      string = "A"
+	UnitJoules       string = "J"
+	UnitWatts        string = "W"
+	UnitGrams        string = "g"
 
 	// Misc
-	UnitCelsius unit.Unit = "Cel"
-	UnitHertz   unit.Unit = "Hz"
-	UnitPercent unit.Unit = "%"
-	UnitDollars unit.Unit = "$"
+	UnitCelsius string = "Cel"
+	UnitHertz   string = "Hz"
+	UnitPercent string = "%"
+	UnitDollars string = "$"
 )

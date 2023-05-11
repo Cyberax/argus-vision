@@ -5,8 +5,6 @@ import (
 	"github.com/Cyberax/argus-vision/utils"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/instrument"
-	"go.opentelemetry.io/otel/metric/unit"
 	"go.opentelemetry.io/otel/trace"
 	"sync"
 )
@@ -29,10 +27,10 @@ type MetricHelper struct {
 
 type NamedMetric struct {
 	Name string
-	Unit unit.Unit
+	Unit string
 }
 
-func Named(nm string, un unit.Unit) NamedMetric {
+func Named(nm string, un string) NamedMetric {
 	return NamedMetric{
 		Name: nm,
 		Unit: un,
@@ -111,15 +109,15 @@ func (m *MetricHelper) Add(nm NamedMetric, val float64) {
 	m.metricValues[nm.Name] = m.metricValues[nm.Name] + val
 
 	// Record the counter
-	hg, err := m.meter.SyncFloat64().UpDownCounter(
-		m.metricPrefix+nm.Name, instrument.WithUnit(nm.Unit))
+	hg, err := m.meter.Float64UpDownCounter(
+		m.metricPrefix+nm.Name, metric.WithUnit(nm.Unit))
 	utils.PanicIfErr(err)
 	hg.Add(context.Background(), val, m.getTags()...)
 
 	// Counters lose details since they are not submitted immediately, so make sure we submit
 	// the number of samples taken to be able to calculate the average value.
-	hgCnt, err := m.meter.SyncFloat64().Counter(
-		m.metricPrefix+nm.Name+"_num", instrument.WithUnit(Dimensionless))
+	hgCnt, err := m.meter.Float64Counter(
+		m.metricPrefix+nm.Name+"_num", metric.WithUnit(Dimensionless))
 	utils.PanicIfErr(err)
 	hgCnt.Add(context.Background(), 1, m.getTags()...)
 }
@@ -132,8 +130,8 @@ func (m *MetricHelper) Close() {
 	attrs := m.getTags()
 
 	for _, val := range m.metricsToZero {
-		counter, err := m.meter.SyncFloat64().UpDownCounter(
-			m.metricPrefix+val.Name, instrument.WithUnit(val.Unit))
+		counter, err := m.meter.Float64UpDownCounter(
+			m.metricPrefix+val.Name, metric.WithUnit(val.Unit))
 		utils.PanicIfErr(err)
 		counter.Add(context.Background(), 0, attrs...)
 	}
@@ -149,8 +147,8 @@ func (m *MetricHelper) ExportToSpan(span trace.Span) {
 	}
 }
 
-func (m *MetricHelper) getTags() []attribute.KeyValue {
-	var attrs []attribute.KeyValue
+func (m *MetricHelper) getTags() []metric.AddOption {
+	var attrs []metric.AddOption
 	//for k, v := range m.tags {
 	//	attrs = append(attrs, attribute.String(k, v))
 	//}

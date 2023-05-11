@@ -6,6 +6,8 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
@@ -14,11 +16,7 @@ import (
 	"strconv"
 	"time"
 
-	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
-	controller "go.opentelemetry.io/otel/sdk/metric/controller/basic"
-	processor "go.opentelemetry.io/otel/sdk/metric/processor/basic"
-	selector "go.opentelemetry.io/otel/sdk/metric/selector/simple"
 )
 
 type Observer struct {
@@ -30,7 +28,6 @@ type Observer struct {
 	Resource           *resource.Resource
 
 	TraceProvider   trace.TracerProvider
-	MeterClient     otlpmetric.Client
 	MeterController metric.MeterProvider
 
 	LogFieldsForSpan func(span trace.Span) []zap.Field
@@ -91,7 +88,7 @@ func NewObserver(rootLogger *zap.Logger, opts ObserverOptions) (*Observer, error
 	}
 
 	var tp *sdktrace.TracerProvider
-	var pusher *controller.Controller
+	var pusher metric.MeterProvider
 
 	// Metrics
 	if opts.MetricsEndpoint != "" {
@@ -100,32 +97,26 @@ func NewObserver(rootLogger *zap.Logger, opts ObserverOptions) (*Observer, error
 			otlpmetricgrpc.WithEndpoint(opts.MetricsEndpoint),
 		}
 
-		client := otlpmetricgrpc.NewClient(options...)
-		exp, err := otlpmetric.New(context.Background(), client)
+		client, err := otlpmetricgrpc.New(context.Background(), options...)
 		if err != nil {
 			return nil, err
 		}
 
-		pusher = controller.New(
-			processor.NewFactory(
-				selector.NewWithHistogramDistribution(),
-				exp,
-			),
-			controller.WithResource(opts.Resource),
-			controller.WithExporter(exp),
-			controller.WithCollectPeriod(2*time.Second),
-			controller.WithCollectTimeout(4*time.Second),
+		pusher = sdkmetric.NewMeterProvider(
+			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(client,
+				sdkmetric.WithInterval(2*time.Second),
+				sdkmetric.WithTimeout(2*time.Second),
+			)),
+			sdkmetric.WithResource(opts.Resource),
 		)
 
-		res.MeterClient = client
 		res.MeterController = pusher
 
-		err = pusher.Start(context.Background())
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		res.MeterController = metric.NewNoopMeterProvider()
+		res.MeterController = noop.NewMeterProvider()
 	}
 
 	// Traces
@@ -159,10 +150,6 @@ func NewObserver(rootLogger *zap.Logger, opts ObserverOptions) (*Observer, error
 	res.Shutdown = func(ctx context.Context) {
 		if tp != nil {
 			_ = tp.Shutdown(ctx)
-		}
-		if pusher != nil {
-			_ = pusher.Collect(ctx)
-			_ = pusher.Stop(ctx)
 		}
 	}
 

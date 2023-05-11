@@ -1,164 +1,148 @@
 package visibility
 
 import (
-    "context"
-    "go.opentelemetry.io/otel/sdk/instrumentation"
-    controller "go.opentelemetry.io/otel/sdk/metric/controller/basic"
-    "go.opentelemetry.io/otel/sdk/metric/export"
-    "go.opentelemetry.io/otel/sdk/metric/export/aggregation"
-    processor "go.opentelemetry.io/otel/sdk/metric/processor/basic"
-    "go.opentelemetry.io/otel/sdk/metric/sdkapi"
-    selector "go.opentelemetry.io/otel/sdk/metric/selector/simple"
-    "go.opentelemetry.io/otel/sdk/resource"
-    "go.opentelemetry.io/otel/sdk/trace"
-    sdktrace "go.opentelemetry.io/otel/sdk/trace"
-    "go.uber.org/zap"
-    "sync"
-    "time"
+	"context"
+	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/aggregation"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/sdk/trace"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.uber.org/zap"
+	"sync"
 )
 
 func NewRecordingObserver(rootLogger *zap.Logger) (*Observer, *Recorder) {
-    res := &Observer{
-        Logger:           rootLogger,
-        LogFieldsForSpan: DatadogLogDerivation,
-    }
+	res := &Observer{
+		Logger:           rootLogger,
+		LogFieldsForSpan: DatadogLogDerivation,
+	}
 
-    tracerExp := &recordingSpanExporter{}
+	tracerExp := &recordingSpanExporter{}
 
-    tp := sdktrace.NewTracerProvider(
-        sdktrace.WithSampler(sdktrace.AlwaysSample()),
-        sdktrace.WithSyncer(tracerExp),
-        sdktrace.WithIDGenerator(NewPredictableIdGen(123)),
-    )
-    res.TraceProvider = tp
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(tracerExp),
+		sdktrace.WithIDGenerator(NewPredictableIdGen(123)),
+	)
+	res.TraceProvider = tp
 
-    exp := &recordingMetricExporter{}
-    pusher := controller.New(
-        processor.NewFactory(
-            selector.NewWithInexpensiveDistribution(),
-            exp,
-        ),
-        controller.WithExporter(exp),
-        controller.WithCollectPeriod(2*time.Second),
-    )
-    res.MeterController = pusher
-    _ = pusher.Start(context.Background())
+	exp := &recordingMetricExporter{}
+	pusher := metric.NewMeterProvider(
+		metric.WithReader(metric.NewPeriodicReader(exp)),
+	)
 
-    res.Shutdown = func(ctx context.Context) {
-        _ = tp.Shutdown(ctx)
-        _ = pusher.Collect(ctx)
-        _ = pusher.Stop(ctx)
-    }
+	res.MeterController = pusher
 
-    return res, &Recorder{
-        controller: pusher,
-        metrics:    exp,
-        tracer:     tracerExp,
-    }
+	res.Shutdown = func(ctx context.Context) {
+		_ = tp.Shutdown(ctx)
+		_ = pusher.ForceFlush(ctx)
+		_ = pusher.Shutdown(ctx)
+	}
+
+	return res, &Recorder{
+		controller: pusher,
+		metrics:    exp,
+		tracer:     tracerExp,
+	}
 }
 
 type Record struct {
-    Metrics map[string]float64
-    Spans   []trace.ReadOnlySpan
+	Metrics map[string]float64
+	Spans   []trace.ReadOnlySpan
 }
 
 type Recorder struct {
-    controller *controller.Controller
-    metrics    *recordingMetricExporter
-    tracer     *recordingSpanExporter
+	controller *metric.MeterProvider
+	metrics    *recordingMetricExporter
+	tracer     *recordingSpanExporter
 }
 
 func (r *Recorder) Get() Record {
-    // Force the metric collection (yes, it's the only way)
-    _ = r.controller.Stop(context.Background())
-    _ = r.controller.Start(context.Background())
+	_ = r.controller.ForceFlush(context.Background())
 
-    var res Record
+	var res Record
 
-    r.metrics.mtx.Lock()
-    defer r.metrics.mtx.Unlock()
-    res.Metrics = r.metrics.Sums
-    r.metrics.Sums = nil
+	r.metrics.mtx.Lock()
+	defer r.metrics.mtx.Unlock()
+	res.Metrics = r.metrics.Sums
+	r.metrics.Sums = nil
 
-    if res.Metrics == nil {
-        res.Metrics = make(map[string]float64)
-    }
+	if res.Metrics == nil {
+		res.Metrics = make(map[string]float64)
+	}
 
-    r.tracer.mtx.Lock()
-    defer r.tracer.mtx.Unlock()
-    res.Spans = r.tracer.spans
-    r.tracer.spans = nil
+	r.tracer.mtx.Lock()
+	defer r.tracer.mtx.Unlock()
+	res.Spans = r.tracer.spans
+	r.tracer.spans = nil
 
-    return res
+	return res
 }
 
 type recordingMetricExporter struct {
-    mtx sync.Mutex
+	mtx sync.Mutex
 
-    Sums map[string]float64
+	Sums map[string]float64
 }
 
-var _ export.Exporter = &recordingMetricExporter{}
+var _ metric.Exporter = &recordingMetricExporter{}
 
-func (e *recordingMetricExporter) TemporalityFor(desc *sdkapi.Descriptor, kind aggregation.Kind) aggregation.Temporality {
-    return aggregation.StatelessTemporalitySelector().TemporalityFor(desc, kind)
+func (e *recordingMetricExporter) Temporality(kind metric.InstrumentKind) metricdata.Temporality {
+	return metric.DefaultTemporalitySelector(kind)
 }
 
-func (e *recordingMetricExporter) Export(_ context.Context, res *resource.Resource,
-    reader export.InstrumentationLibraryReader) error {
+func (e *recordingMetricExporter) Aggregation(kind metric.InstrumentKind) aggregation.Aggregation {
+	return metric.DefaultAggregationSelector(kind)
+}
 
-    e.mtx.Lock()
-    defer e.mtx.Unlock()
+func (e *recordingMetricExporter) Export(ctx context.Context, metrics *metricdata.ResourceMetrics) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
 
-    if e.Sums == nil {
-        e.Sums = make(map[string]float64)
-    }
+	if e.Sums == nil {
+		e.Sums = make(map[string]float64)
+	}
 
-    err := reader.ForEach(func(lib instrumentation.Scope, mr export.Reader) error {
-        return mr.ForEach(e, func(record export.Record) error {
-            agg := record.Aggregation()
+	for _, scope := range metrics.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			agg := m.Data
 
-            if sum, ok := agg.(aggregation.Sum); ok {
-                value, err := sum.Sum()
-                if err != nil {
-                    return err
-                }
-                e.Sums[record.Descriptor().Name()] += value.AsFloat64()
-            } else if lv, ok := agg.(aggregation.LastValue); ok {
-                value, _, err := lv.LastValue()
-                if err != nil {
-                    return err
-                }
-                e.Sums[record.Descriptor().Name()] += value.AsFloat64()
-            }
+			if sum, ok := agg.(*metricdata.Sum[float64]); ok {
+				for _, p := range sum.DataPoints {
+					e.Sums[m.Name] += p.Value
+				}
+			}
+		}
+	}
 
-            return nil
-        })
-    })
-    if err != nil {
-        return err
-    }
+	return nil
+}
 
-    return nil
+func (e *recordingMetricExporter) ForceFlush(ctx context.Context) error {
+	return nil
+}
+
+func (e *recordingMetricExporter) Shutdown(ctx context.Context) error {
+	return nil
 }
 
 type recordingSpanExporter struct {
-    mtx   sync.Mutex
-    spans []trace.ReadOnlySpan
+	mtx   sync.Mutex
+	spans []trace.ReadOnlySpan
 }
 
 var _ trace.SpanExporter = &recordingSpanExporter{}
 
 // ExportSpans writes spans in json format to stdout.
 func (e *recordingSpanExporter) ExportSpans(ctx context.Context, spans []trace.ReadOnlySpan) error {
-    e.mtx.Lock()
-    defer e.mtx.Unlock()
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
 
-    e.spans = append(e.spans, spans...)
-    return nil
+	e.spans = append(e.spans, spans...)
+	return nil
 }
 
 // Shutdown is called to stop the exporter, it preforms no action.
 func (e *recordingSpanExporter) Shutdown(_ context.Context) error {
-    return nil
+	return nil
 }
