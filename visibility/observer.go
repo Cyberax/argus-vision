@@ -13,6 +13,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"os"
 	"strconv"
 	"time"
 
@@ -62,9 +63,24 @@ func NewDefaultObserverOptions(libraryName, serviceName, envName string) (Observ
 		return ObserverOptions{}, err
 	}
 
+	// ENV vars as specified in:
+	// https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
+	both := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if both == "" {
+		both = "localhost:4317"
+	}
+	metrics := os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
+	if metrics == "" {
+		metrics = both
+	}
+	tracing := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+	if tracing == "" {
+		tracing = both
+	}
+
 	return ObserverOptions{
-		MetricsEndpoint: "localhost:4317",
-		TracingEndpoint: "localhost:4317",
+		MetricsEndpoint: metrics,
+		TracingEndpoint: tracing,
 		LibraryName:     libraryName,
 		Resource:        envInfo,
 		IdGenerator:     NewCryptoSafeRandIdGenerator(true),
